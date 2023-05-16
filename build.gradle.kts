@@ -29,7 +29,7 @@ val tstypesImplementation: Configuration by
 dependencies {
     val mtsAsn1Version = "86f06cd"
     val kmemVersion = "4.0.0"
-    val javalinVersion = "5.5.0"
+    val javalinVersion = "4.6.8"
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
     implementation("com.github.handymenny.mts-asn1:mts-asn1-converter:$mtsAsn1Version")

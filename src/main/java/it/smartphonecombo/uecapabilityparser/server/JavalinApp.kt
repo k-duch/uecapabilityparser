@@ -2,12 +2,11 @@ package it.smartphonecombo.uecapabilityparser.server
 
 import io.javalin.Javalin
 import io.javalin.apibuilder.ApiBuilder
-import io.javalin.config.SizeUnit
+import io.javalin.core.compression.Gzip
 import io.javalin.http.ContentType
 import io.javalin.http.Context
-import io.javalin.http.HttpStatus
 import io.javalin.http.staticfiles.Location
-import io.javalin.json.JsonMapper
+import io.javalin.plugin.json.JsonMapper
 import it.smartphonecombo.uecapabilityparser.extension.getArray
 import it.smartphonecombo.uecapabilityparser.extension.getString
 import it.smartphonecombo.uecapabilityparser.model.combo.ComboEnDc
@@ -16,7 +15,6 @@ import it.smartphonecombo.uecapabilityparser.model.combo.ComboNr
 import it.smartphonecombo.uecapabilityparser.model.combo.ComboNrDc
 import it.smartphonecombo.uecapabilityparser.util.Output
 import it.smartphonecombo.uecapabilityparser.util.Parsing
-import java.lang.reflect.Type
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -25,18 +23,19 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.serializer
+import org.eclipse.jetty.http.HttpStatus
 
 class JavalinApp {
     private val base64 = Base64.getDecoder()
     private val jsonMapper =
         object : JsonMapper {
-            override fun <T : Any> fromJsonString(json: String, targetType: Type): T {
+            override fun <T : Any> fromJsonString(json: String, targetClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST")
-                val deserializer = serializer(targetType) as KSerializer<T>
+                val deserializer = serializer(targetClass) as KSerializer<T>
                 return Json.decodeFromString(deserializer, json)
             }
 
-            override fun toJsonString(obj: Any, type: Type): String {
+            override fun toJsonString(obj: Any): String {
                 val serializer = serializer(obj.javaClass)
                 return Json.encodeToString(serializer, obj)
             }
@@ -52,14 +51,14 @@ class JavalinApp {
 
     val app: Javalin =
         Javalin.create { config ->
-            config.compression.gzipOnly(4)
-            config.http.prefer405over404 = true
-            config.http.maxRequestSize = 100L * SizeUnit.MB.multiplier
-            config.routing.treatMultipleSlashesAsSingleSlash = true
+            config.compressionStrategy(null, Gzip(4))
+            config.prefer405over404 = true
+            config.maxRequestSize = 100L * 1024 * 1024
+            config.ignoreTrailingSlashes = true
             config.jsonMapper(jsonMapper)
-            config.plugins.enableCors { cors -> cors.add { it.anyHost() } }
-            config.staticFiles.add("/web", Location.CLASSPATH)
-            config.staticFiles.add { staticFiles ->
+            config.enableCorsForAllOrigins()
+            config.addStaticFiles("/web", Location.CLASSPATH)
+            config.addStaticFiles { staticFiles ->
                 staticFiles.hostedPath = "/swagger"
                 staticFiles.directory = "/swagger"
                 staticFiles.location = Location.CLASSPATH
@@ -68,7 +67,7 @@ class JavalinApp {
 
     init {
         app.exception(Exception::class.java) { e, _ -> e.printStackTrace() }
-        app.error(HttpStatus.NOT_FOUND) { ctx ->
+        app.error(HttpStatus.NOT_FOUND_404) { ctx ->
             if (html404 != null) {
                 ctx.contentType(ContentType.HTML)
                 ctx.result(html404)
@@ -89,7 +88,7 @@ class JavalinApp {
 
                 if (input == null && inputNR == null || type == null) {
                     ctx.result("Bad Request")
-                    ctx.status(HttpStatus.BAD_REQUEST)
+                    ctx.status(HttpStatus.BAD_REQUEST_400)
                 } else {
                     val parsing =
                         Parsing(
@@ -110,7 +109,7 @@ class JavalinApp {
 
                 if (input == null || type == null) {
                     ctx.result("Bad Request")
-                    ctx.status(HttpStatus.BAD_REQUEST)
+                    ctx.status(HttpStatus.BAD_REQUEST_400)
                 } else {
                     val comboList =
                         when (type) {
