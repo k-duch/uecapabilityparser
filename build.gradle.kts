@@ -7,6 +7,7 @@ plugins {
     id("com.github.johnrengelman.shadow") version "8.1.1"
     id("com.diffplug.spotless") version "6.18.0"
     id("org.jetbrains.kotlinx.kover") version "0.7.0-Beta"
+    id("maven-publish")
     application
 }
 
@@ -123,3 +124,5 @@ distributions {
         }
     }
 }
+
+publishing { publications { create<MavenPublication>("maven") { from(components["java"]) } } }
